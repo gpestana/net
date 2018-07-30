@@ -3,22 +3,23 @@ package main
 import (
 	"context"
 	"fmt"
-	libp2p "github.com/libp2p/go-libp2p"
-	host "github.com/libp2p/go-libp2p-host"
-	pstore "github.com/libp2p/go-libp2p-peerstore"
-	discovery "github.com/libp2p/go-libp2p/p2p/discovery"
-	ma "github.com/multiformats/go-multiaddr"
+	libp2p "gx/ipfs/QmY51bqSM5XgxQZqsBrQcRkKTnCb8EKpJpR9K6Qax7Njco/go-libp2p"
+	discovery "gx/ipfs/QmY51bqSM5XgxQZqsBrQcRkKTnCb8EKpJpR9K6Qax7Njco/go-libp2p/p2p/discovery"
+	ma "gx/ipfs/QmYmsdtJ3HsodkePE3eU3TsCaP2YvPZJ4LoXnNkDE5Tpt7/go-multiaddr"
+	pstore "gx/ipfs/QmZR2XWVVBCtbgBWnQhWk2xcQfaR3W8faQPriAiaaj7rsr/go-libp2p-peerstore"
+	host "gx/ipfs/Qmb8T6YBBsjYsVGfrihQLfCJveczZnneSBqBKkYEBWDjge/go-libp2p-host"
 	"log"
 	"time"
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// creates host h1 and h2 listening on 0.0.0.0 on any interface device on port
 	// 8000 and 8001 respectively
-	host1, cancel := newHost(8000)
-	defer cancel()
-	host2, cancel := newHost(8001)
-	defer cancel()
+	host1 := newHost(8000, ctx)
+	host2 := newHost(8001, ctx)
 
 	// created host only know about themselves. their peerstore only keeps a
 	// record of their own multiaddress
@@ -27,16 +28,14 @@ func main() {
 
 	// in order to find each other, the peers need to start a mDNS service which
 	// will query and handle nDNS responses (https://tools.ietf.org/html/rfc6762)
-	dtx1 := context.Background()
-	h1discService, err := discovery.NewMdnsService(dtx1, host1, time.Second, "_host-discovery")
+	h1discService, err := discovery.NewMdnsService(ctx, host1, time.Second, "_host-discovery")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer h1discService.Close()
 
 	// host 2 also starts a mDNS service
-	dtx2 := context.Background()
-	h2discService, err := discovery.NewMdnsService(dtx2, host2, time.Second, "_host-discovery")
+	h2discService, err := discovery.NewMdnsService(ctx, host2, time.Second, "_host-discovery")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -60,14 +59,13 @@ func main() {
 	printKnownPeers(host2)
 }
 
-func newHost(p int) (host.Host, func()) {
-	ctx, cancel := context.WithCancel(context.Background())
+func newHost(p int, ctx context.Context) host.Host {
 	hma, _ := ma.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", p))
 	h, err := libp2p.New(ctx, libp2p.ListenAddrs(hma))
 	if err != nil {
 		log.Fatal(err)
 	}
-	return h, cancel
+	return h
 }
 
 type rspHandler struct {
